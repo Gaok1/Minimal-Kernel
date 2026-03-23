@@ -1,23 +1,23 @@
 # Minimal Kernel
 
-Um kernel x86_64 mínimo escrito em Rust, desenvolvido seguindo o post do [Oppermann (Writing an OS in Rust)](https://os.phil-opp.com/).
+A minimal x86_64 kernel written in Rust, built following [Philipp Oppermann's "Writing an OS in Rust"](https://os.phil-opp.com/) blog series.
 
-## O que está implementado
+## What's implemented
 
-- **VGA Text Mode** — driver para escrita no buffer VGA (0xb8000), com suporte a cores e macros `print!`/`println!`/`eprintln!`
-- **GDT (Global Descriptor Table)** — segmentos de código do kernel e TSS configurados via `x86_64`
-- **TSS (Task State Segment)** — pilha dedicada para double faults via IST (Interrupt Stack Table)
-- **IDT (Interrupt Descriptor Table)** — tabela de interrupções com os seguintes handlers:
-  - `Breakpoint` — imprime o stack frame
-  - `Double Fault` — pilha separada via IST para evitar triple fault
-  - `Stack Segment Fault` — imprime o stack frame
-  - `Page Fault` — imprime endereço acessado e error code
-  - `Timer (PIC IRQ0)` — imprime `.` a cada tick
-  - `Keyboard (PIC IRQ1)` — lê scancodes e imprime caracteres via `pc-keyboard`
-- **PIC 8259 encadeado** — remapeamento das IRQs para evitar conflito com as exceções da CPU
-- **HLT loop** — o kernel entra em halt após a inicialização para não desperdiçar CPU
+- **VGA Text Mode** — driver for writing to the VGA buffer (0xb8000), with color support and `print!`/`println!`/`eprintln!` macros
+- **GDT (Global Descriptor Table)** — kernel code segment and TSS configured via the `x86_64` crate
+- **TSS (Task State Segment)** — dedicated stack for double faults via IST (Interrupt Stack Table)
+- **IDT (Interrupt Descriptor Table)** — interrupt table with the following handlers:
+  - `Breakpoint` — prints the stack frame
+  - `Double Fault` — uses a separate IST stack to prevent triple faults
+  - `Stack Segment Fault` — prints the stack frame
+  - `Page Fault` — prints the accessed address and error code
+  - `Timer (PIC IRQ0)` — prints `.` on every tick
+  - `Keyboard (PIC IRQ1)` — reads scancodes and prints characters via `pc-keyboard`
+- **Chained PIC 8259** — IRQ remapping to avoid conflicts with CPU exceptions
+- **HLT loop** — kernel halts after initialization to avoid burning CPU cycles
 
-## Estrutura
+## Structure
 
 ```
 src/
@@ -25,40 +25,40 @@ src/
 ├── gdt.rs                         # GDT + TSS
 ├── vga/
 │   ├── mod.rs
-│   ├── buffer.rs                  # Mapeamento do buffer VGA
-│   ├── color.rs                   # Enum de cores
-│   └── writer.rs                  # Writer + macros print!/println!
+│   ├── buffer.rs                  # VGA buffer mapping
+│   ├── color.rs                   # Color enum
+│   └── writer.rs                  # Writer + print!/println! macros
 └── interrupt_handler/
     ├── mod.rs
-    └── interrupts.rs              # IDT, PIC, handlers de exceções e IRQs
+    └── interrupts.rs              # IDT, PIC, exception and IRQ handlers
 
 target_set/
-└── x86-bare_metal.json            # Target customizado: x86_64, sem OS, sem red zone, sem SSE
+└── x86-bare_metal.json            # Custom target: x86_64, no OS, no red zone, no SSE
 ```
 
-## Dependências
+## Dependencies
 
-| Crate | Uso |
+| Crate | Purpose |
 |---|---|
-| `bootloader 0.9` | Carrega o kernel e configura o ambiente inicial |
-| `x86_64` | Abstrações para GDT, IDT, TSS, paginação, registradores |
-| `pic8259` | Driver para o PIC 8259 encadeado |
-| `pc-keyboard` | Decodificação de scancodes de teclado PS/2 |
-| `spin` | Mutex sem OS (spinlock) |
-| `lazy_static` | Inicialização lazy de statics com `spin_no_std` |
+| `bootloader 0.9` | Loads the kernel and sets up the initial environment |
+| `x86_64` | Abstractions for GDT, IDT, TSS, paging, and registers |
+| `pic8259` | Driver for the chained PIC 8259 |
+| `pc-keyboard` | PS/2 keyboard scancode decoding |
+| `spin` | OS-free spinlock mutex |
+| `lazy_static` | Lazy initialization of statics with `spin_no_std` |
 
-## Como compilar e rodar
+## Building and running
 
-### Pré-requisitos
+### Prerequisites
 
 ```bash
 # Rust nightly
 rustup override set nightly
 
-# Componentes necessários
+# Required components
 rustup component add rust-src llvm-tools-preview
 
-# Ferramenta para criar imagem bootável
+# Tool to create a bootable image
 cargo install bootimage
 ```
 
@@ -68,23 +68,23 @@ cargo install bootimage
 cargo build
 ```
 
-### Rodar com QEMU
+### Run with QEMU
 
 ```bash
 cargo bootimage
 qemu-system-x86_64 -drive format=raw,file=target/x86-bare_metal/debug/bootimage-minimal-kernel.bin
 ```
 
-## Target customizado
+## Custom target
 
-O arquivo `target_set/x86-bare_metal.json` define um target `x86_64` bare-metal com:
+The `target_set/x86-bare_metal.json` file defines a bare-metal x86_64 target with:
 
-- `os: none` — sem sistema operacional
-- `disable-redzone: true` — necessário para handlers de interrupção
-- `-mmx,-sse,+soft-float` — SSE desabilitado (o kernel não salva registradores XMM)
+- `os: none` — no operating system
+- `disable-redzone: true` — required for interrupt handlers
+- `-mmx,-sse,+soft-float` — SSE disabled (the kernel does not save XMM registers)
 - Linker: `rust-lld` (LLD)
 - Panic strategy: `abort`
 
-## Referência
+## Reference
 
 - [Writing an OS in Rust — Philipp Oppermann](https://os.phil-opp.com/)
